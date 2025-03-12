@@ -1,3 +1,5 @@
+import json
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -19,11 +21,16 @@ sensitive_data_prompt_template = ('Given a text containing sensitive information
                                   'sensitive information, the list should only contain single words, no phrases. This '
                                   'is the text: ')
 
+place_holder_prompt_template = ("You get a comma-separated list of attributes and your task is to find a generic, "
+                                "descriptive, short place holder for each element. Return a JSON formatted key-value "
+                                "pairs, where the key is the original element. This is the list: ")
+opts = options={"temperature": 0}
+
 
 def detect_sensitive_words(text):
     sensitive_data_response: ChatResponse = chat(model=model, messages=[{
-            'role': 'user',
-            'content': sensitive_data_prompt_template + text}])
+        'role': 'user',
+        'content': sensitive_data_prompt_template + text}], options=opts)
     sensitive_data = sensitive_data_response.message.content
     sensitive_data_list = sensitive_data.split(",")
     sensitive_data_list = [x[1:] if x.startswith(" ") else x for x in sensitive_data_list]
@@ -36,13 +43,28 @@ def replace_sensitive_words(text):
     return re.sub(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b", "[REDACTED]", text)
 
 
+def find_place_holders(sensitive_data):
+    place_holder_response: ChatResponse = chat(model=model, messages=[{
+        'role': 'user',
+        'content': place_holder_prompt_template + sensitive_data}], options=opts)
+    place_holders = str(place_holder_response.message.content)
+    if place_holders[:7] == '```json' and place_holders[-3:] == '```':
+        place_holders = place_holders[7:-3]
+    print(place_holders)
+    place_holders_dict = json.loads(place_holders)
+    place_holders_dict = {key: "[{}]".format(place_holders_dict[key]) for key in place_holders_dict}
+    print(place_holders_dict)
+    return place_holders_dict
+
+
 @app.post("/detect")
 def detect_sensitive_info(request: TextRequest):
     sensitive_words = detect_sensitive_words(request.text)
     return {"sensitive_words": sensitive_words}
 
 
-@app.post("/replace")
+@app.post("/place_holder")
 def replace_sensitive_info(request: TextRequest):
-    anonymized_text = replace_sensitive_words(request.text)
-    return {"anonymized_text": anonymized_text}
+    print(request.text)
+    place_holders = find_place_holders(request.text)
+    return {"place_holders": place_holders}

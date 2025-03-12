@@ -17,9 +17,15 @@ class CustomTextEdit(QTextEdit):
 
     def contextMenuEvent(self, event):
         """ Show a custom right-click menu for selecting/unselecting words """
-        cursor = self.cursorForPosition(event.pos())  # Get cursor position
-        cursor.select(QTextCursor.SelectionType.WordUnderCursor)
-        word = cursor.selectedText().strip()
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            # If user has selected text, use that instead of word under cursor
+            word = cursor.selectedText().strip()
+        else:
+            # Get cursor position and find the word under the cursor
+            cursor = self.cursorForPosition(event.pos())
+            cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+            word = cursor.selectedText().strip()
 
         if not word:
             return  # Ignore empty selections
@@ -78,25 +84,53 @@ class CustomTextEdit(QTextEdit):
         if source.hasText():
             self.insertPlainText(source.text())
 
+    def get_sensitive_cands(self):
+        return list(self.selected_words) + list(self.sensitive_data_cands)
 
-class DetectThread(QThread):
-    result_ready = pyqtSignal(list)  # Signal to send detected words
+    def replace_placeholders(self, placeholders: dict):
+        """ Replace placeholders in the text field with corresponding values and highlight them """
+        cursor = self.textCursor()
+        doc = self.document()
 
-    def __init__(self, text):
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+
+        for placeholder, replacement in placeholders.items():
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            while True:
+                cursor = doc.find(placeholder, cursor, QTextDocument.FindFlag.FindCaseSensitively)
+                if cursor.isNull():
+                    break
+                cursor.insertText(replacement)
+                self.highlight_word(replacement, color=QColor(255, 69, 0))  # Highlight replaced words
+
+
+class APICallThread(QThread):
+    result_ready_list = pyqtSignal(list)  # Signal for list results
+    result_ready_dict = pyqtSignal(dict)  # Signal for dict results
+
+    def __init__(self, name, args, response_field, default_val):
         super().__init__()
-        self.text = text
+        self.name = name
+        self.args = args
+        self.response_field = response_field
+        self.default_val = default_val
+
+        # Determine the correct signal type to use
+        self.result_ready = self.result_ready_list if isinstance(default_val, list) else self.result_ready_dict
 
     def run(self):
-        response = requests.post(f"{BACKEND_URL}/detect", json={"text": self.text})
+        response = requests.post(f"{BACKEND_URL}/{self.name}", json=self.args)
         if response.status_code == 200:
-            sensitive_words = response.json().get("sensitive_words", [])
-            self.result_ready.emit(sensitive_words)
+            response_data = response.json().get(f"{self.response_field}", self.default_val)
+            self.result_ready.emit(response_data)
 
 
 class SensitiveInfoApp(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.place_holder_thread = None
+        self.detect_thread = None
         self.text_edit = CustomTextEdit(self)
         self.text_edit.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)  # Prevent horizontal scrolling
         self.process_button = QPushButton("Detect Sensitive Info", self)
@@ -116,38 +150,20 @@ class SensitiveInfoApp(QWidget):
         self.showMaximized()
         self.sensitive_words = []
 
-    def highlight_sensitive_words(self):
-        """ Highlight given words in the text edit """
-        text = self.text_edit.toPlainText()
-        cursor = self.text_edit.textCursor()
-        doc = self.text_edit.document()  # Get document reference
-
-        format = QTextCharFormat()
-        format.setForeground(QColor(255, 69, 0))  # Orange-Red color
-        format.setFontWeight(QFont.Weight.Bold)
-
-        # Reset formatting before applying new highlights
-        cursor.select(QTextCursor.SelectionType.Document)
-        cursor.setCharFormat(QTextCharFormat())
-
-        for word in self.sensitive_words:
-            cursor = doc.find(word)  # Use QTextDocument.find()
-            while not cursor.isNull():  # If found, apply formatting
-                cursor.mergeCharFormat(format)
-                cursor = doc.find(word, cursor)  # Find next occurrence
-
     def detect_sensitive_info(self):
         """ Run detection in a separate thread with a loading animation """
         text = self.text_edit.toPlainText()
 
         # Disable button & show loading cursor
         self.process_button.setEnabled(False)
+        self.replace_button.setEnabled(False)
         QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
 
         # Start background processing
-        self.thread = DetectThread(text)
-        self.thread.result_ready.connect(self.on_detection_complete)
-        self.thread.start()
+        self.detect_thread = APICallThread("detect", {"text": text}, "sensitive_words", [])
+        print(self.detect_thread.result_ready)
+        self.detect_thread.result_ready.connect(self.on_detection_complete)
+        self.detect_thread.start()
 
     def on_detection_complete(self, sensitive_words):
         """ Handle the result and restore UI """
@@ -158,15 +174,33 @@ class SensitiveInfoApp(QWidget):
 
         # Restore button & cursor
         self.process_button.setEnabled(True)
+        self.replace_button.setEnabled(True)
+        QApplication.restoreOverrideCursor()
+
+    def on_place_holder_complete(self, place_holders: dict):
+        """ Handle the result and restore UI """
+
+        print("place_holders: ", place_holders)
+
+        self.text_edit.replace_placeholders(place_holders)
+
+        # Restore button & cursor
+        self.process_button.setEnabled(True)
+        self.replace_button.setEnabled(True)
         QApplication.restoreOverrideCursor()
 
     def replace_sensitive_info(self):
         """ Send text to backend and replace sensitive words with placeholders """
-        text = self.text_edit.toPlainText()
-        response = requests.post(f"{BACKEND_URL}/replace", json={"sensitive_words": self.sensitive_words})
-        if response.status_code == 200:
-            anonymized_text = response.json()["anonymized_text"]
-            self.text_edit.setText(anonymized_text)
+        # Disable button & show loading cursor
+        self.process_button.setEnabled(False)
+        self.replace_button.setEnabled(False)
+        QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
+
+        # Start background processing
+        args = {'text': ', '.join(self.text_edit.get_sensitive_cands())}
+        self.place_holder_thread = APICallThread("place_holder", args, "place_holders", {})
+        self.place_holder_thread.result_ready.connect(self.on_place_holder_complete)
+        self.place_holder_thread.start()
 
 
 if __name__ == "__main__":
