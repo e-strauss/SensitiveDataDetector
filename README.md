@@ -20,10 +20,15 @@ A PyQt6-based GUI tool for detecting and selecting sensitive information in text
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate  
    pip install -r requirements.txt  
 
-3. Run the backend
+3. Install GUI linux dependencies
+   ```shell
+   sudo apt update
+   sudo apt install libxcb-cursor0 libxcb-xinerama0 libxcb-randr0 libxcb-shape0
+
+4. Run the backend
    ```sh
    uvicorn main:app --reload
 
-4. Run the GUI
+5. Run the GUI
    ```sh
    python gui.py
