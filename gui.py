@@ -1,6 +1,6 @@
 import sys
 import requests
-from PyQt6.QtWidgets import QApplication, QWidget, QTextEdit, QPushButton, QVBoxLayout, QMenu
+from PyQt6.QtWidgets import QApplication, QWidget, QTextEdit, QPushButton, QVBoxLayout, QMenu, QMenuBar
 from PyQt6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor, QCursor, QAction, QTextDocument
 from PyQt6.QtCore import QMimeData, Qt, QThread, pyqtSignal
 
@@ -131,6 +131,24 @@ class SensitiveInfoApp(QWidget):
 
         self.place_holder_thread = None
         self.detect_thread = None
+
+        self.global_size = 12  # Default font size
+
+        # Create menu bar
+        menu_bar = QMenuBar(self)
+        view_menu = menu_bar.addMenu("View")
+
+        increase_action = QAction("Increase Size", self)
+        increase_action.setShortcut("Ctrl++")
+        increase_action.triggered.connect(self.increase_size)
+
+        decrease_action = QAction("Decrease Size", self)
+        decrease_action.setShortcut("Ctrl+-")
+        decrease_action.triggered.connect(self.decrease_size)
+
+        view_menu.addAction(increase_action)
+        view_menu.addAction(decrease_action)
+
         self.text_edit = CustomTextEdit(self)
         self.text_edit.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)  # Prevent horizontal scrolling
         self.process_button = QPushButton("Detect Sensitive Info", self)
@@ -140,6 +158,7 @@ class SensitiveInfoApp(QWidget):
         layout.addWidget(self.text_edit)
         layout.addWidget(self.process_button)
         layout.addWidget(self.replace_button)
+        layout.setMenuBar(menu_bar)
         self.setLayout(layout)
 
         self.process_button.clicked.connect(self.detect_sensitive_info)
@@ -149,6 +168,22 @@ class SensitiveInfoApp(QWidget):
         self.resize(600, 400)
         self.showMaximized()
         self.sensitive_words = []
+
+    def increase_size(self):
+        self.global_size += 2
+        self.update_ui_size()
+
+    def decrease_size(self):
+        self.global_size = max(8, self.global_size - 2)  # Prevent too small sizes
+        self.update_ui_size()
+
+    def update_ui_size(self):
+        font = self.text_edit.font()
+        font.setPointSize(self.global_size)
+        self.text_edit.setFont(font)
+
+        self.process_button.setStyleSheet(f"font-size: {self.global_size}px; padding: {self.global_size // 2}px;")
+        self.replace_button.setStyleSheet(f"font-size: {self.global_size}px; padding: {self.global_size // 2}px;")
 
     def detect_sensitive_info(self):
         """ Run detection in a separate thread with a loading animation """

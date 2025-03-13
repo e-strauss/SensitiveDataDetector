@@ -22,7 +22,6 @@ A PyQt6-based GUI tool for detecting and selecting sensitive information in text
 
 3. Install GUI linux dependencies
    ```shell
-   sudo apt update
    sudo apt install libxcb-cursor0 libxcb-xinerama0 libxcb-randr0 libxcb-shape0
 
 4. Run the backend
