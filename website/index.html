@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensitive Info Selector</title>
+    <script type="module" src="https://pyscript.net/latest/pyscript.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .highlight {
+            background-color: orange;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sensitive Info Selector</h1>
+    <textarea id="textInput"></textarea>
+    <br>
+    <button py-click="detect_sensitive_info">Detect Sensitive Info</button>
+    <button py-click="replace_sensitive_info">Replace with Placeholders</button>
+    <pre id="output"></pre>
+
+    <script type="py">
+        import js
+        import asyncio
+        import json
+        import micropip
+        await micropip.install("httpx")
+        import httpx
+
+        BACKEND_URL = "http://127.0.0.1:8000"
+
+        async def post_request(endpoint, data):
+            async with httpx.AsyncClient() as client:
+                response = await client.post(f"{BACKEND_URL}/{endpoint}", json=data)
+                return response.json() if response.status_code == 200 else {}
+
+        async def detect_sensitive_info():
+            text = js.document.getElementById("textInput").value
+            response = await post_request("detect", {"text": text})
+            sensitive_words = response.get("sensitive_words", [])
+
+            output = js.document.getElementById("output")
+            output.innerText = f"Sensitive Words: {', '.join(sensitive_words)}"
+
+            for word in sensitive_words:
+                js.document.getElementById("textInput").value = text.replace(word, f"[{word}]")
+
+        async def replace_sensitive_info():
+            text = js.document.getElementById("textInput").value
+            response = await post_request("place_holder", {"text": text})
+            placeholders = response.get("place_holders", {})
+
+            for word, placeholder in placeholders.items():
+                text = text.replace(word, placeholder)
+
+            js.document.getElementById("textInput").value = text
+            js.document.getElementById("output").innerText = "Placeholders Applied!"
+    </script>
+</body>
+</html>
