@@ -1,6 +1,7 @@
 import json
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ollama import chat
@@ -9,6 +10,14 @@ from ollama import ChatResponse
 import re
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change this to your frontend's actual URL for better security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class TextRequest(BaseModel):
@@ -77,4 +86,7 @@ def replace_sensitive_info(request: TextRequest):
 
 @app.post("/hello")
 def hello():
-    return "Hello World!"
+    print("--------------------------------------")
+    print("HELLO")
+    print("--------------------------------------")
+    return {"message": "Hello World!"}

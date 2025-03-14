@@ -10,9 +10,12 @@
             font-family: Arial, sans-serif;
             margin: 20px;
         }
-        textarea {
+        .text-container {
             width: 100%;
             height: 200px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
         }
         button {
             margin: 10px 5px;
@@ -20,81 +23,21 @@
             font-size: 16px;
         }
         .highlight {
-            background-color: orange;
+            color: orangered;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <h1>Sensitive Info Selector</h1>
-    <textarea id="textInput"></textarea>
+    <div id="textInput" class="text-container contenteditable" contenteditable="true"></div>
     <br>
     <button onclick="detectSensitiveInfo()">Detect Sensitive Info</button>
     <button onclick="replaceSensitiveInfo()">Replace with Placeholders</button>
     <button onclick="sayHello()">Say Hello</button>
     <pre id="output"></pre>
 
-    <script>
-        const BACKEND_URL = "http://192.168.178.68:8000";
-
-        async function postRequest(endpoint, data = {}) {
-            try {
-                const response = await fetch(`${BACKEND_URL}/${endpoint}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(data)
-                });
-                if (!response.ok) throw new Error(`Error: ${response.status}`);
-                return await response.json();
-            } catch (error) {
-                console.error("Request failed", error);
-                return {};
-            }
-        }
-
-        async function detectSensitiveInfo() {
-            const textInput = document.getElementById("textInput");
-            const output = document.getElementById("output");
-            const text = textInput.value;
-
-            console.log("Detecting sensitive info...");
-            const response = await postRequest("detect", { text });
-            const sensitiveWords = response.sensitive_words || [];
-
-            output.innerText = `Sensitive Words: ${sensitiveWords.join(", ")}`;
-
-            let updatedText = text;
-            sensitiveWords.forEach(word => {
-                updatedText = updatedText.replace(new RegExp(word, 'g'), `[${word}]`);
-            });
-            textInput.value = updatedText;
-            console.log("Sensitive info detection complete.");
-        }
-
-        async function replaceSensitiveInfo() {
-            const textInput = document.getElementById("textInput");
-            const output = document.getElementById("output");
-            const text = textInput.value;
-
-            console.log("Replacing sensitive info with placeholders...");
-            const response = await postRequest("place_holder", { text });
-            const placeholders = response.place_holders || {};
-
-            let updatedText = text;
-            Object.entries(placeholders).forEach(([word, placeholder]) => {
-                updatedText = updatedText.replace(new RegExp(word, 'g'), placeholder);
-            });
-            textInput.value = updatedText;
-            output.innerText = "Placeholders Applied!";
-            console.log("Replacement complete.");
-        }
-
-        async function sayHello() {
-            console.log("Calling /hello endpoint...");
-            const response = await postRequest("hello");
-            const message = response.message || "No response";
-            document.getElementById("output").innerText = message;
-            console.log(`Received message: ${message}`);
-        }
-    </script>
+    <!-- Link external JavaScript file -->
+    <script src="script.js"></script>
 </body>
 </html>
