@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensitive Info Selector</title>
-    <script type="module" src="https://pyscript.net/latest/pyscript.js"></script>
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
     <style>
         body {
@@ -31,44 +31,77 @@
     <br>
     <button py-click="detect_sensitive_info">Detect Sensitive Info</button>
     <button py-click="replace_sensitive_info">Replace with Placeholders</button>
+    <button py-click="say_hello">Say Hello</button>
     <pre id="output"></pre>
 
     <script type="py">
         import js
         import asyncio
         import json
-        import micropip
-        await micropip.install("httpx")
-        import httpx
+        import logging
 
-        BACKEND_URL = "http://127.0.0.1:8000"
+        async def setup():
+            # Load micropip first
+            from pyodide import loadPackage
+            await loadPackage("micropip")
 
-        async def post_request(endpoint, data):
-            async with httpx.AsyncClient() as client:
-                response = await client.post(f"{BACKEND_URL}/{endpoint}", json=data)
-                return response.json() if response.status_code == 200 else {}
+            import micropip
+            await micropip.install("httpx")
 
-        async def detect_sensitive_info():
-            text = js.document.getElementById("textInput").value
-            response = await post_request("detect", {"text": text})
-            sensitive_words = response.get("sensitive_words", [])
+            global httpx
+            import httpx
 
-            output = js.document.getElementById("output")
-            output.innerText = f"Sensitive Words: {', '.join(sensitive_words)}"
+            logging.basicConfig(level=logging.INFO)
+            logging.info("httpx installed successfully.")
 
-            for word in sensitive_words:
-                js.document.getElementById("textInput").value = text.replace(word, f"[{word}]")
+            global BACKEND_URL
+            BACKEND_URL = "http://192.168.178.56:8000"
 
-        async def replace_sensitive_info():
-            text = js.document.getElementById("textInput").value
-            response = await post_request("place_holder", {"text": text})
-            placeholders = response.get("place_holders", {})
+            async def post_request(endpoint, data=None):
+                logging.info(f"Sending request to {BACKEND_URL}/{endpoint} with data: {data}")
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(f"{BACKEND_URL}/{endpoint}", json=data or {})
+                    if response.status_code == 200:
+                        logging.info(f"Response from {endpoint}: {response.json()}")
+                        return response.json()
+                    else:
+                        logging.error(f"Error from {endpoint}: {response.status_code}")
+                        return {}
 
-            for word, placeholder in placeholders.items():
-                text = text.replace(word, placeholder)
+            async def detect_sensitive_info():
+                text = js.document.getElementById("textInput").value
+                logging.info("Detecting sensitive info...")
+                response = await post_request("detect", {"text": text})
+                sensitive_words = response.get("sensitive_words", [])
 
-            js.document.getElementById("textInput").value = text
-            js.document.getElementById("output").innerText = "Placeholders Applied!"
+                output = js.document.getElementById("output")
+                output.innerText = f"Sensitive Words: {', '.join(sensitive_words)}"
+
+                for word in sensitive_words:
+                    js.document.getElementById("textInput").value = text.replace(word, f"[{word}]")
+                logging.info("Sensitive info detection complete.")
+
+            async def replace_sensitive_info():
+                text = js.document.getElementById("textInput").value
+                logging.info("Replacing sensitive info with placeholders...")
+                response = await post_request("place_holder", {"text": text})
+                placeholders = response.get("place_holders", {})
+
+                for word, placeholder in placeholders.items():
+                    text = text.replace(word, placeholder)
+
+                js.document.getElementById("textInput").value = text
+                js.document.getElementById("output").innerText = "Placeholders Applied!"
+                logging.info("Replacement complete.")
+
+            async def say_hello():
+                logging.info("Calling /hello endpoint...")
+                response = await post_request("hello")
+                message = response.get("message", "No response")
+                js.document.getElementById("output").innerText = message
+                logging.info(f"Received message: {message}")
+
+        asyncio.ensure_future(setup())
     </script>
 </body>
 </html>
