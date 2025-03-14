@@ -24,7 +24,7 @@ sensitive_data_prompt_template = ('Given a text containing sensitive information
 place_holder_prompt_template = ("You get a comma-separated list of attributes and your task is to find a generic, "
                                 "descriptive, short place holder for each element. Return a JSON formatted key-value "
                                 "pairs, where the key is the original element. This is the list: ")
-opts = options={"temperature": 0}
+opts = options = {"temperature": 0}
 
 
 def detect_sensitive_words(text):
@@ -59,12 +59,22 @@ def find_place_holders(sensitive_data):
 
 @app.post("/detect")
 def detect_sensitive_info(request: TextRequest):
+    print("--------------------------------------")
+    print(request.text)
+    print("--------------------------------------")
     sensitive_words = detect_sensitive_words(request.text)
     return {"sensitive_words": sensitive_words}
 
 
 @app.post("/place_holder")
 def replace_sensitive_info(request: TextRequest):
+    print("--------------------------------------")
     print(request.text)
+    print("--------------------------------------")
     place_holders = find_place_holders(request.text)
     return {"place_holders": place_holders}
+
+
+@app.post("/hello")
+def hello():
+    return "Hello World!"
